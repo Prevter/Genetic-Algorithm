@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Genetic Algorithm</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+	<style>
+			body, html{
+				padding: 0;
+				margin:0;
+			}
+			div {
+				padding: 5px;
+				margin:5px;
+				width:100%;
+			}
+			button {
+				padding: 10px;
+			}
+	</style>
+	<canvas id="game"></canvas><br>
+	<div id="stats"></div>
+	<div id="tools">Skip generations: <input type="number" min="1" id="gennum" value="1"><button onclick="skipGen(lol,gennum.value);">Skip</button>
+<br><button onclick="saveGen(lol)">Save generation</button>
+<br><span>Load from file: </span><input type="file" onchange="loadFile(files[0],lol);"/></div>
+	<script>
+		//Settings
+		FPS = 500;        //Game speed
+		size = 1500;      //Population size
+		lifetime = 1500; //Moves of each entity
+		step = 20;        //"Speed" of each entity
+
+		width = 500;     //Canvas width
+		height = 500;    //Canvas height
+
+		targetX = 310;
+		targetY = 450;
+
+		populationX = 25;
+		populationY = 25;
+
+		mutationRate = 1; //%
+
+		blocks = [];     //Obstacles. To create use:
+		
+		blocks.push({
+			x:0, //Position X
+			y:60,  //Position Y
+			w:320,  //Width
+			h:25   //Height
+		});
+		
+		blocks.push({
+			x:180, //Position X
+			y:160,  //Position Y
+			w:320,  //Width
+			h:25   //Height
+		});
+		/*
+		blocks.push({
+			x:0, //Position X
+			y:260,  //Position Y
+			w:320,  //Width
+			h:25   //Height
+		});
+		
+		blocks.push({
+			x:180, //Position X
+			y:360,  //Position Y
+			w:320,  //Width
+			h:25   //Height
+		});
+			*/
+		blocks.push({
+			x:60, //Position X
+			y:280,  //Position Y
+			w:40,  //Width
+			h:250   //Height
+		});
+		
+		blocks.push({
+			x:210, //Position X
+			y:280,  //Position Y
+			w:40,  //Width
+			h:250   //Height
+		});
+		
+		blocks.push({
+			x:360, //Position X
+			y:280,  //Position Y
+			w:40,  //Width
+			h:250   //Height
+		});
+		
+		//-------------
+	/*
+		blocks.push({
+			x:100, //Position X
+			y:100,  //Position Y
+			w:20,  //Width
+			h:250   //Height
+		});
+		blocks.push({
+			x:100, //Position X
+			y:100,  //Position Y
+			w:300,  //Width
+			h:50   //Height
+		});
+		blocks.push({
+			x:200, //Position X
+			y:100,  //Position Y
+			w:200,  //Width
+			h:400   //Height
+		});
+//-------------------------------------
+	
+		blocks.push({
+			x:150, //Position X
+			y:200,  //Position Y
+			w:150,  //Width
+			h:350   //Height
+		});
+
+		blocks.push({
+			x:400, //Position X
+			y:200,  //Position Y
+			w:100,  //Width
+			h:150   //Height
+		});
+		
+		blocks.push({
+			x:400, //Position X
+			y:450,  //Position Y
+			w:100,  //Width
+			h:50   //Height
+		});
+		
+		blocks.push({
+			x:0, //Position X
+			y:200,  //Position Y
+			w:50,  //Width
+			h:150   //Height
+		});
+		
+		blocks.push({
+			x:150, //Position X
+			y:450,  //Position Y
+			w:150,  //Width
+			h:150   //Height
+		});
+		
+		blocks.push({
+			x:0, //Position X
+			y:450,  //Position Y
+			w:50,  //Width
+			h:150   //Height
+		});
+		
+		blocks.push({
+			x:0, //Position X
+			y:0,  //Position Y
+			w:50,  //Width
+			h:100   //Height
+		});
+		
+		blocks.push({
+			x:150, //Position X
+			y:0,  //Position Y
+			w:150,  //Width
+			h:100   //Height
+		});
+		
+		blocks.push({
+			x:400, //Position X
+			y:0,  //Position Y
+			w:100,  //Width
+			h:100   //Height
+		});
+		*/
+	
+		//Initialization
+		
+		gennum = id("gennum");
+		
+		function download(filename, data) {
+			var a = window.document.createElement('a');
+			a.href = window.URL.createObjectURL(new Blob([data], {type: 'text/json'}));
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+		}
+		
+		function loadFile(file,pop){
+			clearInterval(main);
+			var reader = new FileReader();
+			reader.onload = function(event) {
+				loadDat = JSON.parse(event.target.result);
+				pop.gen = loadDat[0];
+				for(var i = 1; i < loadDat.length-1; i++){
+					ent = new Entity(populationX,populationY);
+					ent.color=loadDat[i][0];
+					ent.dna.genes = loadDat[i][1];
+					pop.entities[i-1] = ent;
+				}
+				main = setInterval(engine, 1000/FPS);
+			};
+			reader.onerror = function(event) {
+				console.error("Ашибка: " + event.target.error.code);
+			};
+			reader.readAsText(file);
+			
+		}
+		
+		function saveGen(pop){
+			//var time = performance.now();
+			clearInterval(main);
+			saveDat = [];
+			saveDat.push(pop.gen);
+			for(var i = 0; i < pop.entities.length; i++){
+				entityDat = [];
+				entityDat.push(pop.entities[i].color);
+				entityDat.push(pop.entities[i].dna.genes);
+				saveDat.push(entityDat);
+			}
+			main = setInterval(engine, 1000/FPS);
+			//time = performance.now() - time;
+			//alert("Time used: "+time/1000+" sec");
+			download(prompt("Name this generation:")+".gen",JSON.stringify(saveDat));
+		}
+		
+		function skipGen(population,count){
+			var time = performance.now();
+			clearInterval(main);
+			for (var i = 0; i < count; i++){
+				while(!population.checkAll()){
+					population.liteupdate();
+				}
+				population.evaluate();
+			}
+			main = setInterval(engine, 1000/FPS);
+			time = performance.now() - time;
+			alert("Time used: "+time/1000+" sec");
+		}
+
+		function fillRect(x,y,width,height,deg){
+    		var rad = deg * Math.PI / 180;
+    		ctx.translate(x + width / 2, y + height / 2);
+    		ctx.rotate(rad);
+    		ctx.fillRect(width / 2 * (-1),height / 2 * (-1),width,height);
+    		ctx.rotate(rad * ( -1 ) );
+   			ctx.translate((x + width / 2) * (-1), (y + height / 2) * (-1));
+		}
+
+		function movePoint(point,angle,distance){
+			point.x += (Math.sin(angle) * distance);
+			point.y += (Math.cos(angle) * distance);
+		}
+
+		function isOverlapPoint(point, obj){
+			return (point.x > obj.x && point.x < obj.x+obj.w && point.y > obj.y && point.y < obj.y+obj.h)
+		}
+
+		function rand(min,max){
+			min = Math.ceil(min);
+    		max = Math.floor(max);
+    		return Math.floor(Math.random() * (max - min + 1)) + min;
+		}
+		
+		function hexToRgb(hex) {
+    		var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    		return result ? {
+        		r: parseInt(result[1], 16),
+        		g: parseInt(result[2], 16),
+        		b: parseInt(result[3], 16)
+			} : null;
+		}
+		
+		function componentToHex(c) {
+    		var hex = c.toString(16);
+    		return hex.length == 1 ? "0" + hex : hex;
+		}
+
+		function rgbToHex(r, g, b) {
+    		return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+		}
+		
+		function mixColor(c1,c2){
+			c1 = hexToRgb(c1);
+			c2 = hexToRgb(c2);
+        	var r=Math.floor((c1.r+c2.r)/2);
+        	var g=Math.floor((c1.g+c2.g)/2);
+        	var b=Math.floor((c1.b+c2.b)/2);
+        	return rgbToHex(r,g,b);
+		}
+
+		function dist(x1,y1,x2,y2){
+			var xs = x2 - x1,
+			ys = y2 - y1;
+			xs *= xs;
+			ys *= ys;
+			return Math.sqrt( xs + ys ); 
+		}
+
+		function id(elem){
+			return document.getElementById(elem);
+		}
+		
+		function DNA(){
+			this.genes = [];
+
+			for (var i = 0; i < lifetime; i++) {
+				this.genes[i] = rand(0,359);
+			}
+
+			this.mutation = function(){
+				for (var i = 0; i < lifetime; i++) {
+					if(mutationRate>rand(0,100)){
+						this.genes[i] = rand(0,359);
+					}
+				}
+			}
+		}
+
+		cnv = id("game");
+		ctx = cnv.getContext("2d");
+
+		cnv.width = width;
+		cnv.height = height;
+
+		cnv.style.background = 'black';
+
+		function Entity(x,y){
+			this.x = x;
+			this.y = y;
+
+			this.vx = 0;
+			this.vy = 0;
+			this.ax = 0;
+			this.ay = 0;
+
+			this.angle = 0;
+
+			this.dna = new DNA();
+
+			this.fitness = 0;
+
+			this.dead = false;
+			this.finished = false;
+
+			this.color = "yellow";
+
+			this.step = 0;
+
+			this.move = function(){
+				this.angle = this.dna.genes[this.step];
+				movePoint(this,this.dna.genes[this.step],step);
+				this.step++;
+			};
+
+			this.show = function(){
+				if(!this.finished){
+					ctx.fillStyle=this.color;
+					fillRect(this.x,this.y,5,7,this.angle);
+				}
+				else{
+					ctx.fillStyle = "brown";
+					fillRect(this.x,this.y,5,7,this.angle);
+				}
+			};
+			this.update = function(){
+				if(!this.dead && !this.finished){
+					if (this.step < lifetime) {
+						this.move();
+						if(target.dist(this)<10){
+							this.finished = true;
+							this.dead = true;
+							//this.color = "brown";
+						}
+						for (var i = 0; i < blockObj.length; i++) {
+							if(isOverlapPoint(this,blockObj[i])){
+								this.dead = true;
+							}
+						}
+						if(this.x>width-2 || this.x < 2 || this.y > height-2 || this.y < 2){
+							this.dead = true;
+						}
+					}else{
+						this.dead = true;
+					}
+				}
+				this.show();
+			};
+			
+			this.liteupdate = function(){
+				if(!this.dead && !this.finished){
+					if (this.step < lifetime) {
+						this.move();
+						if(target.dist(this)<10){
+							this.finished = true;
+							this.dead = true;
+						}
+						for (var i = 0; i < blockObj.length; i++) {
+							if(isOverlapPoint(this,blockObj[i])){
+								this.dead = true;
+							}
+						}
+						if(this.x>width-2 || this.x < 2 || this.y > height-2 || this.y < 2){
+							this.dead = true;
+						}
+					}else{
+						this.dead = true;
+					}
+				}
+			};
+			
+			this.calcFitness = function(){
+				distance = target.dist(this);
+				this.fitness = 1/distance;
+
+				if(this.finished){
+					this.fitness *= 1 + (10/this.step)
+				}
+				if(this.fitness > 0){
+       				this.fitness = Math.pow(this.fitness, 2)
+    			}
+			};
+			this.crossover = function(partner) {
+    			var child = new Entity(x, y);
+    			var genesLength = this.dna.genes.length;
+    			var midPoint = Math.floor(rand(0,genesLength));
+    
+    			for(var i = 0; i < genesLength; i++) {
+      				if(i > midPoint) {
+        				child.dna.genes[i] = this.dna.genes[i];
+     				} else {
+        				child.dna.genes[i] = partner.dna.genes[i];
+      				}
+    			}
+    
+    			child.dna.mutation();
+    			return child;
+  			};
+		}
+
+		function Population(x,y){
+			this.x=x;
+			this.y=y;
+
+			this.entities = [];
+			this.gen = 1;
+
+			this.maxFitness = 0;
+			this.avgFitness = 0;
+
+			this.steps = 0;
+			
+			for (var i = 0; i < size; i++) {
+				this.entities[i] = new Entity(this.x,this.y);
+				if(i<Math.floor(size/3)){
+					this.entities[i].color = "#ffff00";
+				}
+				else if(i<Math.floor(size/3)*2){
+					this.entities[i].color = "#ff00ff";
+				}
+				else{
+					this.entities[i].color = "#5bb600";
+				}
+			}
+
+			this.update = function(){
+				for (var i = 0; i < this.entities.length; i++) {
+					this.entities[i].update();
+				}
+				this.steps++;
+			};
+			
+			this.liteupdate = function(){
+				for (var i = 0; i < this.entities.length; i++) {
+					this.entities[i].liteupdate();
+				}
+				this.steps++;
+			};
+
+			this.checkAll = function(){
+				for (var i = 0; i < this.entities.length; i++) {
+					if(!this.entities[i].dead){
+						return false;
+					}
+				}
+				return true;
+			};
+
+			this.evaluate = function(){
+				this.maxFitness = 0;
+			    for(var i = 0; i < size; i++) {
+			      this.entities[i].calcFitness();
+			      if(this.entities[i].fitness > this.maxFitness) {
+			        this.maxFitness = this.entities[i].fitness;
+			      }
+			    }
+			    
+			    this.sumFitness = 0;
+			    for(var i = 0; i < size; i++) {
+			      this.sumFitness += this.entities[i].fitness;
+			    }
+			    
+			    for(var i = 0; i < size; i++) {
+			      this.entities[i].fitness /= this.maxFitness;
+			    }
+			
+				this.avgFitness = this.sumFitness/size;
+			    
+			    this.matingPool = [];
+			    for(var i = 0; i < size; i++) {
+			      var n = this.entities[i].fitness * 100;
+			      for(var j = 0; j < n; j++) {
+			        this.matingPool.push(this.entities[i]);
+			      }
+			    }
+			    
+			    this.selection();
+			    this.steps = 0;
+			    this.gen++;
+			};
+
+			this.selection = function() {
+    			this.entities = [];
+    			for(var i = 0; i < size; i++) {
+     				var parentA = this.matingPool[rand(0,this.matingPool.length-1)]
+      				var parentB = this.matingPool[rand(0,this.matingPool.length-1)]
+      				var child = parentA.crossover(parentB) 
+      				if(parentA.fitness > parentB.fitness){
+      					child.color = parentA.color;
+    				  }
+      				else{
+      					child.color = parentB.color;
+     			 	}
+      				this.entities.push(child);
+    			}
+  			};
+
+  			this.entitiesLeft = function(){
+  				var died = 0;
+  				for (var i = 0; i < this.entities.length; i++) {
+  					if(this.entities[i].dead){
+  						died++;
+  					}
+  				}
+  				return size-died;
+  			};
+  			this.entitiesFinished = function(){
+  				var finishCount = 0;
+  				for (var i = 0; i < this.entities.length; i++) {
+  					if(this.entities[i].finished){
+  						finishCount++;
+  					}
+  				}
+  				return finishCount;
+  			};
+  
+  			this.colorEntities = function(){
+  				var pink = 0;
+  				var green = 0;
+  				var yellow = 0;
+  				for (var i = 0; i < this.entities.length; i++) {
+  					if(this.entities[i].color == "#ff00ff"){
+  						pink++;
+  					}
+  					else if(this.entities[i].color == "#ffff00"){
+  						yellow++;
+ 				 	}
+ 					else{
+ 						green++;
+					 }
+  				}
+  				return [pink,yellow,green];
+  			};
+		}
+
+		function Target(x,y){
+			this.x=x;
+			this.y=y;
+
+			this.update = function(){
+				ctx.beginPath();
+				ctx.arc(this.x,this.y,10,0,2*Math.PI,false);
+				ctx.fillStyle="red";
+				ctx.fill();
+			};
+
+			this.dist = function(obj){
+				return dist(this.x,this.y,obj.x,obj.y);
+			};
+		}
+
+		function Block(x,y,w,h){
+			this.x = x;
+			this.y = y;
+			this.w = w;
+			this.h = h;
+
+			this.show = function(){
+				ctx.fillStyle="darkblue";
+				ctx.fillRect(this.x,this.y,this.w,this.h);
+			}
+		}
+		
+		var blockObj = [];
+
+		for (var i = 0; i < blocks.length; i++) {
+			blockObj.push(new Block(blocks[i].x,blocks[i].y,blocks[i].w,blocks[i].h));
+		}
+		/*
+		var map = [];
+		
+		
+		for (var y = 0; y < height; y++) {
+			line = [];
+			for (var x = 0; x < width; x++) {
+				line.push(0);
+			}
+			map.push(line);
+		}
+		
+		for (var i = 0; i < blocks.length; i++) {
+			for (var y = blocks[i].y+1; y < blocks[i].y+blocks[i].h; y++) {
+				for (var x = blocks[i].x+1; x < blocks[i].x+blocks[i].w; x++) {
+					map[x][y] = 1;
+				}
+			}
+		}
+		*/
+
+		function engine(){
+			ctx.clearRect(0,0,width+50,height+50);
+			colors = lol.colorEntities();
+			id("stats").innerHTML = "Generation: "+lol.gen+"<br>Steps: "+lol.steps+"/"+lifetime+"<br>Max fitness: "+lol.maxFitness+"<br>Avg fitness: "+lol.avgFitness+"<br>Entities left: " + lol.entitiesLeft() +"/"+size+"<br>Finished entities: "+lol.entitiesFinished()+"/"+size+"<br>Pink vs Yellow vs Green: "+colors[0]+"/"+colors[1]+"/"+colors[2];
+			update();
+		}
+
+		lol = new Population(populationX,populationY);
+		target = new Target(targetX,targetY);
+
+		function update(){
+			for (var i = 0; i < blockObj.length; i++) {
+				blockObj[i].show();
+			}
+			target.update();
+			if(!lol.checkAll()){
+				lol.update();
+			}
+			else{
+				lol.evaluate();
+			}
+		}
+
+		main = setInterval(engine, 1000/FPS);
+
+	</script>
+</body>
+</html>
